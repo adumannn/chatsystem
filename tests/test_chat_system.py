@@ -9,6 +9,12 @@ import os
 import json
 import pickle
 
+# Make the `src/` package importable when tests are run from any cwd.
+_HERE = os.path.dirname(os.path.abspath(__file__))
+_SRC = os.path.abspath(os.path.join(_HERE, os.pardir, 'src'))
+if _SRC not in sys.path:
+    sys.path.insert(0, _SRC)
+
 # Import modules to test
 from chat_utils import *
 from chat_group import Group, S_ALONE, S_TALKING

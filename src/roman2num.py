@@ -4,13 +4,20 @@ Created on Sun Aug  3 10:13:16 2014
 
 @author: zzhang
 """
+import os
 import random
 import pickle
+
+from chat_utils import DATA_DIR
+
 
 class Roman2num:
     def __init__(self, fname):
         self.int2roman = {}
         self.roman2int = {}
+        # Resolve bare filenames against the project's data directory.
+        if not os.path.isabs(fname) and not os.path.exists(fname):
+            fname = os.path.join(DATA_DIR, fname)
         self.fname = fname
         self.outfname = fname + '.pk'
         

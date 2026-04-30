@@ -8,7 +8,13 @@ __pycache__/
 
 # Chat system generated files
 *.idx
-*.pk
+runtime/
+# data/*.pk is a real data artifact; only ignore stray .pk files outside data/
+/*.pk
+/src/*.pk
+
+# OS
+.DS_Store
 
 # IDE
 .vscode/
@@ -16,5 +22,5 @@ __pycache__/
 *.swp
 *.swo
 
-#env variables
+# env variables
 .env

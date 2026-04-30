@@ -4,16 +4,18 @@ Created on Tue Jul 22 00:47:05 2014
 @author: alina, zzhang
 """
 
-import time
-import socket
-import select
-import sys
-import string
-import indexer
 import json
+import os
+import select
+import socket
+import string
+import sys
+import time
 import pickle as pkl
-from chat_utils import *
+
 import chat_group as grp
+import indexer
+from chat_utils import *
 
 class Server:
     def __init__(self):
@@ -57,9 +59,11 @@ class Server:
                         self.logged_sock2name[sock] = name
                         #load chat history of that user
                         if name not in self.indices.keys():
+                            idx_path = os.path.join(RUNTIME_DIR, name + '.idx')
                             try:
-                                self.indices[name]=pkl.load(open(name+'.idx','rb'))
-                            except IOError: #chat index does not exist, then create one
+                                with open(idx_path, 'rb') as f:
+                                    self.indices[name] = pkl.load(f)
+                            except IOError:  # chat index does not exist, then create one
                                 self.indices[name] = indexer.Index(name)
                         print(name + ' logged in')
                         self.group.join(name)
@@ -77,7 +81,9 @@ class Server:
     def logout(self, sock):
         #remove sock from all lists
         name = self.logged_sock2name[sock]
-        pkl.dump(self.indices[name], open(name + '.idx','wb'))
+        idx_path = os.path.join(RUNTIME_DIR, name + '.idx')
+        with open(idx_path, 'wb') as f:
+            pkl.dump(self.indices[name], f)
         del self.indices[name]
         del self.logged_name2sock[name]
         del self.logged_sock2name[sock]

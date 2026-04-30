@@ -4,7 +4,11 @@ Created on Sat Jul  5 11:38:58 2014
 
 @author: zzhang
 """
+import os
 import pickle
+
+from chat_utils import DATA_DIR
+
 
 class Index:
     def __init__(self, name):
@@ -36,14 +40,17 @@ class Index:
         words = m.split()
         self.total_words += len(words)
         for wd in words:
-            if wd not in self.index:
-                self.index[wd] = [l,]
-            else:
-                self.index[wd].append(l)
+            self.index[wd] = self.index.get(wd, []) + [l] 
+    #### Alternatively, the following also works
+#        for wd in words:
+#            try:
+#                self.index[wd]+= [l]
+#            except KeyError:
+#                self.index[wd] = [l]
                                      
     def search(self, term):
         msgs = []
-        if (term in self.index.keys()):
+        if term in self.index.keys():
             indices = self.index[term]
             msgs = [(i, self.msgs[i]) for i in indices]
         return msgs
@@ -51,20 +58,23 @@ class Index:
 class PIndex(Index):
     def __init__(self, name):
         super().__init__(name)
-        roman_int_f = open('roman.txt.pk', 'rb')
-        self.int2roman = pickle.load(roman_int_f)
-        roman_int_f.close()
+        if not os.path.isabs(name) and not os.path.exists(name):
+            self.name = os.path.join(DATA_DIR, name)
+        roman_path = os.path.join(DATA_DIR, 'roman.txt.pk')
+        with open(roman_path, 'rb') as roman_int_f:
+            self.int2roman = pickle.load(roman_int_f)
         self.load_poems()
         
-        # load poems
+    # load poems
     def load_poems(self):
-        lines = open(self.name, 'r').readlines()
+        with open(self.name, 'r') as f:
+            lines = f.readlines()
         for l in lines:
             self.add_msg_and_index(l.rstrip())
     
     def get_poem(self, p):
         p_str = self.int2roman[p] + '.'
-        p_next_str = self.int2roman[p + 1] + '.'
+        p_next_str = self.int2roman[p+1] + '.'
         temp = self.search(p_str)
         if temp:
             [(go_line, m)] = temp

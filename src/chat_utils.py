@@ -1,10 +1,18 @@
+import os
 import socket
 import time
+
+# Project paths -- resolved relative to this file so the code works regardless
+# of the caller's current working directory.
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir))
+DATA_DIR = os.path.join(PROJECT_ROOT, 'data')
+RUNTIME_DIR = os.path.join(PROJECT_ROOT, 'runtime')
+os.makedirs(RUNTIME_DIR, exist_ok=True)
 
 # use local loop back address by default
 # CHAT_IP = '155.138.134.163'
 # CHAT_IP = socket.gethostbyname(socket.gethostname())
-CHAT_IP = ''#socket.gethostbyname(socket.gethostname())
+CHAT_IP = ''  # socket.gethostbyname(socket.gethostname())
 
 CHAT_PORT = 1112
 SERVER = (CHAT_IP, CHAT_PORT)
