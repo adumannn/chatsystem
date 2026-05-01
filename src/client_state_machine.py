@@ -14,6 +14,7 @@ class ClientSM:
         self.out_msg = ''
         self.s = s
 
+
     def set_state(self, state):
         self.state = state
 
@@ -74,7 +75,7 @@ class ClientSM:
                     self.out_msg += 'Here are all the users in the system:\n'
                     self.out_msg += logged_in
 
-                elif my_msg[0] == 'c':
+                elif my_msg.startswith('c '):
                     peer = my_msg[1:]
                     peer = peer.strip()
                     if self.connect_to(peer) == True:
@@ -102,6 +103,16 @@ class ClientSM:
                         self.out_msg += poem + '\n\n'
                     else:
                         self.out_msg += 'Sonnet ' + poem_idx + ' not found\n\n'
+
+                elif my_msg == '/keywords':
+                    mysend(self.s, json.dumps({"action":"keywords"}))
+                    result = json.loads(myrecv(self.s))["results"]
+                    self.out_msg += result + '\n\n'
+
+                elif my_msg == '/summary':
+                    mysend(self.s, json.dumps({"action":"summary"}))
+                    result = json.loads(myrecv(self.s))["results"]
+                    self.out_msg += result + '\n\n'
 
                 else:
                     self.out_msg += menu

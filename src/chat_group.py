@@ -51,21 +51,38 @@ class Group:
         return found, group_key
 
     def connect(self, me, peer):
-        peer_in_group = False
-        #if peer is in a group, join it
-        peer_in_group, group_key = self.find_group(peer)
-        if peer_in_group == True:
+        me_in_group, me_group_key = self.find_group(me)
+        peer_in_group, peer_group_key = self.find_group(peer)
+
+        if me_in_group and peer_in_group:
+            if me_group_key == peer_group_key:
+                print(me, "and", peer, "are already connected")
+                return
+            print(me, "and", peer, "are in different groups, merging")
+            for member in self.chat_grps[peer_group_key]:
+                if member not in self.chat_grps[me_group_key]:
+                    self.chat_grps[me_group_key].append(member)
+                    self.members[member] = S_TALKING
+            del self.chat_grps[peer_group_key]
+        elif me_in_group:
+            print(me, "is talking already, connect", peer)
+            if peer not in self.chat_grps[me_group_key]:
+                self.chat_grps[me_group_key].append(peer)
+            self.members[peer] = S_TALKING
+        elif peer_in_group:
+            #if peer is in a group, join it
             print(peer, "is talking already, connect!")
-            self.chat_grps[group_key].append(me)
+            if me not in self.chat_grps[peer_group_key]:
+                self.chat_grps[peer_group_key].append(me)
             self.members[me] = S_TALKING
         else:
             # otherwise, create a new group
             print(peer, "is idle as well")
             self.grp_ever += 1
-            group_key = self.grp_ever
-            self.chat_grps[group_key] = []
-            self.chat_grps[group_key].append(me)
-            self.chat_grps[group_key].append(peer)
+            me_group_key = self.grp_ever
+            self.chat_grps[me_group_key] = []
+            self.chat_grps[me_group_key].append(me)
+            self.chat_grps[me_group_key].append(peer)
             self.members[me] = S_TALKING
             self.members[peer] = S_TALKING
         print(self.list_me(me))

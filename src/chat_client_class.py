@@ -3,6 +3,7 @@ import socket
 import select
 import sys
 import json
+import getpass
 from chat_utils import *
 import client_state_machine as csm
 
@@ -17,6 +18,7 @@ class Client:
         self.local_msg = ''
         self.peer_msg = ''
         self.args = args
+        self.reading_thread = None
 
     def quit(self):
         self.socket.shutdown(socket.SHUT_RDWR)
@@ -30,9 +32,13 @@ class Client:
         svr = SERVER if self.args.d == None else (self.args.d, CHAT_PORT)
         self.socket.connect(svr)
         self.sm = csm.ClientSM(self.socket)
-        reading_thread = threading.Thread(target=self.read_input)
-        reading_thread.daemon = True
-        reading_thread.start()
+
+    def start_input_reader(self):
+        if self.reading_thread and self.reading_thread.is_alive():
+            return
+        self.reading_thread = threading.Thread(target=self.read_input)
+        self.reading_thread.daemon = True
+        self.reading_thread.start()
 
     def shutdown_chat(self):
         return
@@ -60,10 +66,26 @@ class Client:
             self.system_msg = ''
 
     def login(self):
-        my_msg, peer_msg = self.get_msgs()
-        if len(my_msg) > 0:
-            self.name = my_msg
-            msg = json.dumps({"action":"login", "name":self.name})
+        if len(self.console_input) > 0:
+            raw_login = self.console_input.pop(0)
+            if ':' in raw_login:
+                name, password = raw_login.split(':', 1)
+            else:
+                name, password = raw_login, ''
+        else:
+            try:
+                name = input('Username: ').strip()
+                password = getpass.getpass('Password: ')
+            except (EOFError, KeyboardInterrupt):
+                return False
+
+        self.name = name.strip()
+        if len(self.name) > 0:
+            msg = json.dumps({
+                "action":"login",
+                "name":self.name,
+                "password":password,
+            })
             self.send(msg)
             response = json.loads(self.recv())
             if response["status"] == 'ok':
@@ -75,8 +97,13 @@ class Client:
             elif response["status"] == 'duplicate':
                 self.system_msg += 'Duplicate username, try again'
                 return False
-        else:               # fix: dup is only one of the reasons
-           return(False)
+            else:
+                self.system_msg += response.get(
+                    "message",
+                    "Login failed, try again",
+                )
+                return False
+        return(False)
 
 
     def read_input(self):
@@ -90,10 +117,11 @@ class Client:
     def run_chat(self):
         self.init_chat()
         self.system_msg += 'Welcome to ICS chat\n'
-        self.system_msg += 'Please enter your name: '
+        self.system_msg += 'Please log in with your username and password.\n'
         self.output()
         while self.login() != True:
             self.output()
+        self.start_input_reader()
         self.system_msg += 'Welcome, ' + self.get_name() + '!'
         self.output()
         while self.sm.get_state() != S_OFFLINE:

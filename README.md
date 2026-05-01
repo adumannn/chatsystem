@@ -49,11 +49,16 @@ Chat_System_Full/
 `runtime/` is created automatically the first time anything in `src/` is
 imported. Each user's persisted chat index is written there as `<name>.idx`
 when they log out, and reloaded on next login.
+Login credentials are stored in `runtime/users.json` as salted password
+hashes. A new username is created the first time it logs in with a password;
+later logins for that username must use the same password.
 
 ## Requirements
 
 - Python 3.8+ (developed on 3.13)
-- The standard library only — no external packages needed.
+- Standard-library modules for the core chat system.
+- Optional chatbot support requires Ollama running locally plus the Python
+  `ollama` package.
 - `tkinter` is required for the GUI client (bundled with most Python
   installs; on Debian/Ubuntu install `python3-tk`).
 
@@ -100,6 +105,30 @@ Once logged in, available commands are:
 The GUI client exposes the same commands as toolbar buttons plus an emoji
 picker.
 
+The GUI also includes a graphical Tic-Tac-Toe game. Both players log in through
+the normal chat client, then one player clicks **Game**, enters an online
+opponent's username, and the server creates a game session. Moves are sent to
+the server as `game_move` messages; the server enforces turns, validates wins or
+draws, and broadcasts the updated board to both players. Finished games update a
+server-side leaderboard that is broadcast to connected clients and can be shown
+with the **Scores** button.
+
+Login requires both a username and password. Usernames may contain letters,
+numbers, dots, dashes, and underscores, up to 32 characters.
+
+The GUI starts a `chatbot` user automatically. After login, ordinary text that
+is not a chat command is sent to the chatbot; use `c <peer>` when you want to
+chat with another online user instead. Chatbot settings can be overridden with
+`CHATBOT_NAME`, `CHATBOT_PASSWORD`, `CHATBOT_MODEL`, `CHATBOT_OLLAMA_HOST`, and
+`CHATBOT_TIMEOUT` (defaults to 45 seconds).
+
+The chatbot keeps short in-memory conversation context per direct chat or group.
+In a group chat, mention it by name to trigger a reply, for example
+`@chatbot what do you think about our project?`. You can change its behavior
+from chat with `@chatbot personality: answer like a concise mentor`, inspect it
+with `@chatbot personality?`, and clear local conversation memory with
+`@chatbot clear context`.
+
 ## Running the tests
 
 ```bash
@@ -124,10 +153,12 @@ Every message on the socket is sent through `mysend` / `myrecv` in
 
 Typical actions exchanged in the JSON payload:
 
-- `{"action": "login", "name": "<user>"}`
+- `{"action": "login", "name": "<user>", "password": "<password>"}`
 - `{"action": "list"}` / `{"action": "time"}`
 - `{"action": "connect", "target": "<peer>"}`
 - `{"action": "exchange", "from": "[user]", "message": "..."}`
+- `{"action": "game_invite", "game": "tictactoe", "target": "<peer>"}`
+- `{"action": "game_move", "game": "tictactoe", "game_id": "<id>", "cell": 0}`
 - `{"action": "search", "target": "<term>"}`
 - `{"action": "poem",   "target": "<n>"}`
 - `{"action": "disconnect"}`
