@@ -147,11 +147,13 @@ class ChatGUI:
         self.running = True
         self.login_dialog = None
         self.login_btn_dialog = None
+        self.register_btn_dialog = None
 
         self.login_entry = None
         self.login_error_var = None
 
         self.password_entry = None
+        self.confirm_password_entry = None
         self.password_error_var = None
 
         self.emoji_window = None
@@ -324,8 +326,8 @@ class ChatGUI:
             self.login_dialog.lift()
             return
         d = tk.Toplevel(self.root)
-        d.title("Login")
-        d.geometry("340x240")
+        d.title("Login or Register")
+        d.geometry("340x300")
         d.resizable(False, False)
         d.transient(self.root)
         d.grab_set()
@@ -348,21 +350,46 @@ class ChatGUI:
         self.password_entry.pack(padx=24, pady=8, fill=tk.X, ipady=6)
         self.password_entry.bind('<Return>', lambda e: self.submit_login())
 
+        tk.Label(d, text="Confirm password:",
+                 font=('Helvetica', 10)).pack()
+        self.confirm_password_entry = tk.Entry(d, font=('Helvetica', 11),
+                                               justify='center', show='*')
+        self.confirm_password_entry.pack(padx=24, pady=8, fill=tk.X, ipady=6)
+        self.confirm_password_entry.bind(
+            '<Return>',
+            lambda e: self.submit_login("register"),
+        )
+
         self.login_error_var = tk.StringVar(value=error or '')
         tk.Label(d, textvariable=self.login_error_var,
                  fg='#b91c1c', font=('Helvetica', 9)).pack()
 
+        button_frame = tk.Frame(d)
+        button_frame.pack(pady=8)
         self.login_btn_dialog = tk.Button(
-            d, text="Login", command=self.submit_login,
+            button_frame, text="Login", command=self.submit_login,
             bg='#2563eb', fg='white', font=('Helvetica', 10, 'bold'),
             activebackground='#1d4ed8', activeforeground='white',
         )
-        self.login_btn_dialog.pack(pady=8, ipady=3, ipadx=18)
+        self.login_btn_dialog.pack(side=tk.LEFT, padx=4, ipady=3, ipadx=18)
+        self.register_btn_dialog = tk.Button(
+            button_frame, text="Register",
+            command=lambda: self.submit_login("register"),
+            bg='#047857', fg='white', font=('Helvetica', 10, 'bold'),
+            activebackground='#065f46', activeforeground='white',
+        )
+        self.register_btn_dialog.pack(side=tk.LEFT, padx=4, ipady=3, ipadx=12)
 
         self.login_dialog = d
 
+    def _set_auth_buttons(self, state, login_text='Login', register_text='Register'):
+        if self.login_btn_dialog:
+            self.login_btn_dialog.config(state=state, text=login_text)
+        if self.register_btn_dialog:
+            self.register_btn_dialog.config(state=state, text=register_text)
+
     #login
-    def submit_login(self):
+    def submit_login(self, action="login"):
         if not self.login_entry:
             return
         name = self.login_entry.get().strip()
@@ -374,10 +401,20 @@ class ChatGUI:
         if not password:
             self.login_error_var.set('Password cannot be empty')
             return
+        if action == "register":
+            confirm = self.confirm_password_entry.get().strip()
+            if password != confirm:
+                self.login_error_var.set('Passwords do not match')
+                return
         
-        self.login_btn_dialog.config(state='disabled', text='Logging in...')
+        text = 'Registering...' if action == "register" else 'Logging in...'
+        self._set_auth_buttons('disabled', login_text=text, register_text=text)
         self.login_error_var.set('')
-        self.input_queue.put(('login', {"name": name, "password": password}))
+        self.input_queue.put(('login', {
+            "action": action,
+            "name": name,
+            "password": password,
+        }))
 
     #login_handle
     def on_login_success(self):
@@ -388,7 +425,7 @@ class ChatGUI:
 
     def on_login_failed(self, msg):
         if self.login_dialog and self.login_dialog.winfo_exists():
-            self.login_btn_dialog.config(state='normal', text='Login')
+            self._set_auth_buttons('normal')
             self.login_error_var.set(msg)
             self.login_entry.focus_set()
         else:
@@ -397,7 +434,7 @@ class ChatGUI:
     #password
     def on_password_required(self):
         if self.login_dialog and self.login_dialog.winfo_exists():
-            self.login_btn_dialog.config(state='normal', text='Login')
+            self._set_auth_buttons('normal')
             self.login_error_var.set('Password required')
             self.login_entry.focus_set()
         else:
@@ -405,7 +442,7 @@ class ChatGUI:
 
     def on_password_wrong(self):
         if self.login_dialog and self.login_dialog.winfo_exists():
-            self.login_btn_dialog.config(state='normal', text='Login')
+            self._set_auth_buttons('normal')
             self.login_error_var.set('Password is wrong')
             self.login_entry.focus_set()
         else:
@@ -861,11 +898,22 @@ class ChatGUI:
             except queue.Empty:
                 continue
             kind, payload = item if isinstance(item, tuple) else ('msg', item)
+            action = "login"
             if kind == 'login' and isinstance(payload, dict):
+                action = payload.get("action", "login")
                 name = payload.get("name", "").strip()
                 password = payload.get("password", "")
             else:
                 raw_login = str(payload)
+                for prefix in ("register ", "r ", "login ", "l "):
+                    if raw_login.lower().startswith(prefix):
+                        action = (
+                            "register"
+                            if prefix.strip() in ("register", "r")
+                            else "login"
+                        )
+                        raw_login = raw_login[len(prefix):]
+                        break
                 if ':' in raw_login:
                     name, password = raw_login.split(':', 1)
                     name = name.strip()
@@ -873,7 +921,7 @@ class ChatGUI:
                     name, password = raw_login.strip(), ''
             try:
                 mysend(self.socket, json.dumps({
-                    "action": "login",
+                    "action": action,
                     "name": name,
                     "password": password,
                 }))

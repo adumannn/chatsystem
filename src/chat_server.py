@@ -55,7 +55,7 @@ class Server:
         except OSError:
             pass
 
-    def complete_login(self, sock, name):
+    def complete_login(self, sock, name, action="login", message="Login successful"):
         self.new_clients.remove(sock)
         self.logged_name2sock[name] = sock
         self.logged_sock2name[sock] = name
@@ -68,11 +68,15 @@ class Server:
                 self.indices[name] = indexer.Index(name)
         print(name + ' logged in')
         self.group.join(name)
-        mysend(sock, json.dumps({"action":"login", "status":"ok"}))
-
-    def reject_login(self, sock, status, message):
         mysend(sock, json.dumps({
-            "action": "login",
+            "action": action,
+            "status": "ok",
+            "message": message,
+        }))
+
+    def reject_login(self, sock, action, status, message):
+        mysend(sock, json.dumps({
+            "action": action,
             "status": status,
             "message": message,
         }))
@@ -89,22 +93,27 @@ class Server:
             msg = json.loads(myrecv(sock))
             if len(msg) > 0:
 
-                if msg.get("action") == "login":
+                action = msg.get("action")
+                if action in ("login", "register"):
                     name = (msg.get("name") or "").strip()
                     password = msg.get("password")
-                    ok, status, message = self.auth.authenticate(name, password)
+                    if action == "register":
+                        ok, status, message = self.auth.register(name, password)
+                    else:
+                        ok, status, message = self.auth.authenticate(name, password)
                     if not ok:
-                        self.reject_login(sock, status, message)
-                        print('login rejected: ' + status)
+                        self.reject_login(sock, action, status, message)
+                        print(action + ' rejected: ' + status)
                     elif self.group.is_member(name):
                         self.reject_login(
                             sock,
+                            action,
                             "duplicate",
                             "Username already taken",
                         )
                         print(name + ' duplicate login attempt')
                     else:
-                        self.complete_login(sock, name)
+                        self.complete_login(sock, name, action, message)
                 else:
                     print ('wrong code received')
             else: #client died unexpectedly

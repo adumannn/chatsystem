@@ -224,18 +224,27 @@ class ChatBotClient:
         print(f"[{self.name}] Connected to server {self.server_addr}")
 
     def _login(self):
-        mysend(self.socket, json.dumps({
-            "action": "login",
-            "name": self.name,
-            "password": self.password,
-        }))
-        resp = json.loads(myrecv(self.socket))
+        resp = self._send_auth("login")
         if resp["status"] == "ok":
             self.state = S_LOGGEDIN
             print(f"[{self.name}] Logged in")
             return True
+        if resp["status"] == "not-found":
+            resp = self._send_auth("register")
+            if resp["status"] == "ok":
+                self.state = S_LOGGEDIN
+                print(f"[{self.name}] Registered and logged in")
+                return True
         print(f"[{self.name}] Login failed: {resp['status']}")
         return False
+
+    def _send_auth(self, action):
+        mysend(self.socket, json.dumps({
+            "action": action,
+            "name": self.name,
+            "password": self.password,
+        }))
+        return json.loads(myrecv(self.socket))
 
     def _send_chat(self, text):
         """Send an exchange message to the current chat group."""

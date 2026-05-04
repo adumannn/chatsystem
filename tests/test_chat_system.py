@@ -375,8 +375,8 @@ class TestPasswordAuthenticator(unittest.TestCase):
         self.assertFalse(is_valid_username('../alice'))
         self.assertFalse(is_valid_username('alice bob'))
 
-    def test_creates_and_reuses_password(self):
-        ok, status, _ = self.auth.authenticate('alice', 'secret')
+    def test_registers_and_reuses_password(self):
+        ok, status, _ = self.auth.register('alice', 'secret')
         self.assertTrue(ok)
         self.assertEqual(status, 'ok')
 
@@ -385,21 +385,78 @@ class TestPasswordAuthenticator(unittest.TestCase):
         self.assertTrue(ok)
         self.assertEqual(status, 'ok')
 
-    def test_rejects_missing_or_wrong_password(self):
-        ok, status, _ = self.auth.authenticate('alice', '')
+    def test_rejects_missing_unknown_or_wrong_password(self):
+        ok, status, _ = self.auth.register('alice', '')
         self.assertFalse(ok)
         self.assertEqual(status, 'password-required')
 
-        self.auth.authenticate('alice', 'secret')
+        ok, status, _ = self.auth.authenticate('alice', 'secret')
+        self.assertFalse(ok)
+        self.assertEqual(status, 'not-found')
+
+        self.auth.register('alice', 'secret')
         ok, status, _ = self.auth.authenticate('alice', 'wrong')
         self.assertFalse(ok)
         self.assertEqual(status, 'wrong-password')
 
+    def test_rejects_duplicate_registration(self):
+        self.auth.register('alice', 'secret')
+        ok, status, _ = self.auth.register('alice', 'new-secret')
+        self.assertFalse(ok)
+        self.assertEqual(status, 'exists')
+
     def test_password_is_not_stored_plaintext(self):
-        self.auth.authenticate('alice', 'secret')
+        self.auth.register('alice', 'secret')
         with open(self.auth_path, 'r', encoding='utf-8') as f:
             raw = f.read()
         self.assertNotIn('"secret"', raw)
+
+
+class TestAuthProtocol(unittest.TestCase):
+    """Test server login and registration handshakes"""
+
+    def setUp(self):
+        import tempfile
+
+        self.tmpdir = tempfile.TemporaryDirectory()
+        self.auth_path = os.path.join(self.tmpdir.name, 'users.json')
+        self.client_sock, self.server_sock = socket.socketpair()
+        self.client_sock.settimeout(1)
+        self.server_sock.settimeout(1)
+
+        self.server = Server.__new__(Server)
+        self.server.new_clients = [self.server_sock]
+        self.server.all_sockets = [self.server_sock]
+        self.server.logged_name2sock = {}
+        self.server.logged_sock2name = {}
+        self.server.group = Group()
+        self.server.auth = PasswordAuthenticator(self.auth_path)
+        self.server.indices = {}
+
+    def tearDown(self):
+        for sock in (self.client_sock, self.server_sock):
+            sock.close()
+        self.tmpdir.cleanup()
+
+    def send_auth(self, action, name='alice', password='secret'):
+        mysend(self.client_sock, json.dumps({
+            'action': action,
+            'name': name,
+            'password': password,
+        }))
+        self.server.login(self.server_sock)
+        return json.loads(myrecv(self.client_sock))
+
+    def test_login_unknown_user_is_rejected(self):
+        response = self.send_auth('login')
+        self.assertEqual(response['status'], 'not-found')
+        self.assertNotIn('alice', self.server.logged_name2sock)
+
+    def test_register_logs_user_in(self):
+        response = self.send_auth('register')
+        self.assertEqual(response['status'], 'ok')
+        self.assertEqual(response['action'], 'register')
+        self.assertIn('alice', self.server.logged_name2sock)
 
 
 class TestTicTacToeServer(unittest.TestCase):

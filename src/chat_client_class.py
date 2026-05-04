@@ -66,23 +66,37 @@ class Client:
             self.system_msg = ''
 
     def login(self):
+        action = "login"
         if len(self.console_input) > 0:
             raw_login = self.console_input.pop(0)
+            for prefix in ("register ", "r ", "login ", "l "):
+                if raw_login.lower().startswith(prefix):
+                    action = "register" if prefix.strip() in ("register", "r") else "login"
+                    raw_login = raw_login[len(prefix):]
+                    break
             if ':' in raw_login:
                 name, password = raw_login.split(':', 1)
             else:
                 name, password = raw_login, ''
         else:
             try:
+                choice = input('(L)ogin or (R)egister? [l]: ').strip().lower()
+                if choice.startswith('r'):
+                    action = "register"
                 name = input('Username: ').strip()
                 password = getpass.getpass('Password: ')
+                if action == "register":
+                    confirm = getpass.getpass('Confirm password: ')
+                    if password != confirm:
+                        self.system_msg += 'Passwords do not match'
+                        return False
             except (EOFError, KeyboardInterrupt):
                 return False
 
         self.name = name.strip()
         if len(self.name) > 0:
             msg = json.dumps({
-                "action":"login",
+                "action":action,
                 "name":self.name,
                 "password":password,
             })
@@ -97,10 +111,16 @@ class Client:
             elif response["status"] == 'duplicate':
                 self.system_msg += 'Duplicate username, try again'
                 return False
+            elif response["status"] == 'exists':
+                self.system_msg += 'Username already exists, try logging in'
+                return False
+            elif response["status"] == 'not-found':
+                self.system_msg += 'Account not found, register first'
+                return False
             else:
                 self.system_msg += response.get(
                     "message",
-                    "Login failed, try again",
+                    "Authentication failed, try again",
                 )
                 return False
         return(False)
@@ -117,7 +137,7 @@ class Client:
     def run_chat(self):
         self.init_chat()
         self.system_msg += 'Welcome to ICS chat\n'
-        self.system_msg += 'Please log in with your username and password.\n'
+        self.system_msg += 'Please log in or register with your username and password.\n'
         self.output()
         while self.login() != True:
             self.output()

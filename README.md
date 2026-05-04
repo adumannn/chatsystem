@@ -50,8 +50,8 @@ Chat_System_Full/
 imported. Each user's persisted chat index is written there as `<name>.idx`
 when they log out, and reloaded on next login.
 Login credentials are stored in `runtime/users.json` as salted password
-hashes. A new username is created the first time it logs in with a password;
-later logins for that username must use the same password.
+hashes. New users must register first; later logins for that username must use
+the same password.
 
 ## Requirements
 
@@ -113,8 +113,8 @@ draws, and broadcasts the updated board to both players. Finished games update a
 server-side leaderboard that is broadcast to connected clients and can be shown
 with the **Scores** button.
 
-Login requires both a username and password. Usernames may contain letters,
-numbers, dots, dashes, and underscores, up to 32 characters.
+Login and registration require both a username and password. Usernames may
+contain letters, numbers, dots, dashes, and underscores, up to 32 characters.
 
 The GUI starts a `chatbot` user automatically. After login, ordinary text that
 is not a chat command is sent to the chatbot; use `c <peer>` when you want to
@@ -154,6 +154,7 @@ Every message on the socket is sent through `mysend` / `myrecv` in
 Typical actions exchanged in the JSON payload:
 
 - `{"action": "login", "name": "<user>", "password": "<password>"}`
+- `{"action": "register", "name": "<user>", "password": "<password>"}`
 - `{"action": "list"}` / `{"action": "time"}`
 - `{"action": "connect", "target": "<peer>"}`
 - `{"action": "exchange", "from": "[user]", "message": "..."}`

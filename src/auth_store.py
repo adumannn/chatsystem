@@ -64,26 +64,43 @@ class PasswordAuthenticator:
                 pass
             raise
 
-    def authenticate(self, name, password):
+    def _validate_credentials(self, name, password):
         name = (name or "").strip()
         if not name:
-            return False, "invalid", "Username cannot be empty"
+            return False, name, "invalid", "Username cannot be empty"
         if not is_valid_username(name):
             return (
                 False,
+                name,
                 "invalid",
                 "Username must be 1-32 letters, numbers, dots, dashes, or underscores",
             )
         if password is None or password == "":
-            return False, "password-required", "Password required"
+            return False, name, "password-required", "Password required"
         if len(password) > 256:
-            return False, "invalid", "Password is too long"
+            return False, name, "invalid", "Password is too long"
+        return True, name, "ok", ""
+
+    def register(self, name, password):
+        valid, name, status, message = self._validate_credentials(name, password)
+        if not valid:
+            return False, status, message
+
+        if name in self.users:
+            return False, "exists", "Username already exists"
+
+        self.users[name] = self._make_record(password)
+        self._save()
+        return True, "ok", "Account created"
+
+    def authenticate(self, name, password):
+        valid, name, status, message = self._validate_credentials(name, password)
+        if not valid:
+            return False, status, message
 
         record = self.users.get(name)
         if record is None:
-            self.users[name] = self._make_record(password)
-            self._save()
-            return True, "ok", "Account created"
+            return False, "not-found", "Account not found. Please register first"
 
         if self._verify(password, record):
             return True, "ok", "Login successful"
