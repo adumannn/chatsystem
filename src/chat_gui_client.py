@@ -23,6 +23,38 @@ from chat_utils import (
 )
 import client_state_machine as csm
 
+APP_BG = '#f3f4f6'
+PANEL_BG = '#ffffff'
+TEXT_DARK = '#111827'
+TEXT_MUTED = '#6b7280'
+
+BUTTON_VARIANTS = {
+    'primary': {
+        'bg': '#2563eb', 'fg': '#ffffff',
+        'activebackground': '#1d4ed8', 'activeforeground': '#ffffff',
+    },
+    'secondary': {
+        'bg': '#e5e7eb', 'fg': TEXT_DARK,
+        'activebackground': '#d1d5db', 'activeforeground': TEXT_DARK,
+    },
+    'success': {
+        'bg': '#047857', 'fg': '#ffffff',
+        'activebackground': '#065f46', 'activeforeground': '#ffffff',
+    },
+    'danger': {
+        'bg': '#fee2e2', 'fg': '#991b1b',
+        'activebackground': '#fecaca', 'activeforeground': '#7f1d1d',
+    },
+    'ghost': {
+        'bg': PANEL_BG, 'fg': TEXT_DARK,
+        'activebackground': '#f3f4f6', 'activeforeground': TEXT_DARK,
+    },
+    'board': {
+        'bg': '#f9fafb', 'fg': TEXT_DARK,
+        'activebackground': '#dbeafe', 'activeforeground': TEXT_DARK,
+    },
+}
+
 #emojis
 EMOJIS = ['😀', '😂', '😍', '😎', '🥳', '😢', '😡', '🤔',
           '👍', '👎', '❤️', '🔥', '✨', '🎉', '🙏', '💯',
@@ -37,6 +69,7 @@ class TicTacToeWindow:
         self.window = tk.Toplevel(gui.root)
         self.window.title("Tic-Tac-Toe")
         self.window.resizable(False, False)
+        self.window.configure(bg=PANEL_BG)
         self.window.protocol("WM_DELETE_WINDOW", self.window.withdraw)
 
         self.title_var = tk.StringVar()
@@ -44,19 +77,23 @@ class TicTacToeWindow:
             self.window,
             textvariable=self.title_var,
             font=('Helvetica', 12, 'bold'),
+            bg=PANEL_BG,
+            fg=TEXT_DARK,
             pady=8,
         ).pack(fill=tk.X)
 
-        board_frame = tk.Frame(self.window)
+        board_frame = tk.Frame(self.window, bg=PANEL_BG)
         board_frame.pack(padx=12, pady=8)
         self.buttons = []
         for idx in range(9):
-            btn = tk.Button(
+            btn = self.gui.make_button(
                 board_frame,
                 text='',
+                variant='board',
                 width=4,
                 height=2,
                 font=('Helvetica', 24, 'bold'),
+                disabledforeground=TEXT_DARK,
                 command=lambda cell=idx: self.play(cell),
             )
             btn.grid(row=idx // 3, column=idx % 3, padx=3, pady=3)
@@ -67,15 +104,24 @@ class TicTacToeWindow:
             self.window,
             textvariable=self.status_var,
             font=('Helvetica', 10),
+            bg=PANEL_BG,
+            fg=TEXT_MUTED,
             pady=4,
         ).pack(fill=tk.X)
 
-        actions = tk.Frame(self.window)
+        actions = tk.Frame(self.window, bg=PANEL_BG)
         actions.pack(pady=(4, 12))
-        tk.Button(actions, text='Scoreboard',
-                  command=self.gui.request_game_scoreboard).pack(
-                      side=tk.LEFT, padx=4)
-        tk.Button(actions, text='Resign', command=self.resign).pack(
+        self.gui.make_button(
+            actions,
+            text='Scoreboard',
+            command=self.gui.request_game_scoreboard,
+        ).pack(side=tk.LEFT, padx=4)
+        self.gui.make_button(
+            actions,
+            text='Resign',
+            command=self.resign,
+            variant='danger',
+        ).pack(
             side=tk.LEFT, padx=4)
 
         self.update(payload)
@@ -139,6 +185,7 @@ class ChatGUI:
         self.name = ''
         self.bot_name = os.environ.get("CHATBOT_NAME", "chatbot")
         self.pending_bot_msg = ''
+        self.pending_connect_peer = ''
         self.bot_in_group = False
         self.game_windows = {}
 
@@ -165,11 +212,36 @@ class ChatGUI:
         self.root.title("ICDS Chat")
         self.root.geometry("760x560")
         self.root.minsize(520, 380)
+        self.root.configure(bg=APP_BG)
         self.root.protocol("WM_DELETE_WINDOW", self.on_close)
         self._build_widgets()
         self._set_chat_widgets_enabled(False)
 
     # ui
+    def make_button(self, parent, text, command=None, variant='secondary',
+                    width=None, **kwargs):
+        style = BUTTON_VARIANTS.get(variant, BUTTON_VARIANTS['secondary'])
+        options = {
+            'text': text,
+            'command': command,
+            'bg': style['bg'],
+            'fg': style['fg'],
+            'activebackground': style['activebackground'],
+            'activeforeground': style['activeforeground'],
+            'disabledforeground': '#9ca3af',
+            'relief': 'flat',
+            'bd': 0,
+            'highlightthickness': 0,
+            'font': ('Helvetica', 10, 'bold'),
+            'cursor': 'hand2',
+            'padx': 12,
+            'pady': 6,
+        }
+        if width is not None:
+            options['width'] = width
+        options.update(kwargs)
+        return tk.Button(parent, **options)
+
     def _build_widgets(self):
         self.status_var = tk.StringVar(value="Connecting...")
         status = tk.Label(
@@ -181,7 +253,9 @@ class ChatGUI:
 
         self.display = scrolledtext.ScrolledText(
             self.root, state='disabled', wrap=tk.WORD,
-            font=('Helvetica', 11), bg='#fafafa', padx=8, pady=8,
+            font=('Helvetica', 11), bg=PANEL_BG, padx=8, pady=8,
+            relief='flat', bd=0, highlightthickness=1,
+            highlightbackground='#d1d5db', highlightcolor='#93c5fd',
         )
         self.display.pack(fill=tk.BOTH, expand=True, padx=8, pady=(8, 4))
         self.display.tag_config('system', foreground='#6b7280',
@@ -204,7 +278,7 @@ class ChatGUI:
                                 foreground='#dc2626',
                                 font=('Helvetica', 9, 'bold'))
 
-        toolbar = tk.Frame(self.root)
+        toolbar = tk.Frame(self.root, bg=APP_BG)
         toolbar.pack(fill=tk.X, padx=8)
         toolbar_buttons = [
             ('Time',   lambda: self.toolbar_send('time')),
@@ -220,32 +294,45 @@ class ChatGUI:
             ('Quit',   lambda: self.toolbar_send('q')),
         ]
         for label, action in toolbar_buttons:
-            b = tk.Button(toolbar, text=label, width=8, command=action)
+            variant = 'danger' if label == 'Quit' else 'secondary'
+            b = self.make_button(
+                toolbar,
+                text=label,
+                width=8,
+                command=action,
+                variant=variant,
+            )
             b.pack(side=tk.LEFT, padx=2, pady=4)
             self.chat_widgets.append(b)
 
-        inframe = tk.Frame(self.root)
+        inframe = tk.Frame(self.root, bg=APP_BG)
         inframe.pack(fill=tk.X, padx=8, pady=(4, 8))
-        self.emoji_btn = tk.Button(
+        self.emoji_btn = self.make_button(
             inframe, text='😊', font=('Helvetica', 14),
-            width=3, command=self.show_emoji_picker,
+            width=3, command=self.show_emoji_picker, variant='secondary',
+            padx=6, pady=3,
         )
         self.emoji_btn.pack(side=tk.LEFT, padx=(0, 4))
         self.chat_widgets.append(self.emoji_btn)
 
-        self.entry = tk.Entry(inframe, font=('Helvetica', 11))
+        self.entry = tk.Entry(
+            inframe,
+            font=('Helvetica', 11),
+            relief='flat',
+            highlightthickness=1,
+            highlightbackground='#d1d5db',
+            highlightcolor='#2563eb',
+        )
         self.entry.pack(side=tk.LEFT, fill=tk.X, expand=True,
                         ipady=6, padx=(0, 6))
         self.entry.bind('<Return>', lambda e: self.on_send())
         self.chat_widgets.append(self.entry)
 
-        self.send_btn = tk.Button(
+        self.send_btn = self.make_button(
             inframe, text='Send', command=self.on_send,
-            width=10, bg='#2563eb', fg='white',
-            activebackground='#1d4ed8', activeforeground='white',
-            font=('Helvetica', 10, 'bold'),
+            width=10, variant='primary',
         )
-        self.send_btn.pack(side=tk.RIGHT, ipady=4)
+        self.send_btn.pack(side=tk.RIGHT)
         self.chat_widgets.append(self.send_btn)
 
     def _set_chat_widgets_enabled(self, enabled):
@@ -289,6 +376,10 @@ class ChatGUI:
                 self.append(f'> {text}', 'me')
                 self.input_queue.put(('cmd', text))
                 return
+            if text.startswith('c ') and text[1:].strip():
+                self.append(f'> {text}', 'me')
+                self.input_queue.put(('switch_peer', text[1:].strip()))
+                return
             self.append(f'[{self.name}] {text}', 'me', sentiment_text=text)
         elif self._is_loggedin_command(text):
             self.append(f'> {text}', 'me')
@@ -329,31 +420,55 @@ class ChatGUI:
         d.title("Login or Register")
         d.geometry("340x300")
         d.resizable(False, False)
+        d.configure(bg=PANEL_BG)
         d.transient(self.root)
         d.grab_set()
         d.protocol("WM_DELETE_WINDOW", self.on_close)
 
         tk.Label(d, text="ICDS Chat", font=('Helvetica', 16, 'bold'),
-                 pady=12).pack()
+                 bg=PANEL_BG, fg=TEXT_DARK, pady=12).pack()
         tk.Label(d, text="Username:",
-                 font=('Helvetica', 10)).pack()
-        self.login_entry = tk.Entry(d, font=('Helvetica', 11),
-                                    justify='center')
+                 font=('Helvetica', 10), bg=PANEL_BG, fg=TEXT_DARK).pack()
+        self.login_entry = tk.Entry(
+            d,
+            font=('Helvetica', 11),
+            justify='center',
+            relief='flat',
+            highlightthickness=1,
+            highlightbackground='#d1d5db',
+            highlightcolor='#2563eb',
+        )
         self.login_entry.pack(padx=24, pady=8, fill=tk.X, ipady=6)
         self.login_entry.focus_set()
         self.login_entry.bind('<Return>', lambda e: self.submit_login())
 
         tk.Label(d, text="Password:",
-                 font=('Helvetica', 10)).pack()
-        self.password_entry = tk.Entry(d, font=('Helvetica', 11),
-                                       justify='center', show='*')
+                 font=('Helvetica', 10), bg=PANEL_BG, fg=TEXT_DARK).pack()
+        self.password_entry = tk.Entry(
+            d,
+            font=('Helvetica', 11),
+            justify='center',
+            show='*',
+            relief='flat',
+            highlightthickness=1,
+            highlightbackground='#d1d5db',
+            highlightcolor='#2563eb',
+        )
         self.password_entry.pack(padx=24, pady=8, fill=tk.X, ipady=6)
         self.password_entry.bind('<Return>', lambda e: self.submit_login())
 
         tk.Label(d, text="Confirm password:",
-                 font=('Helvetica', 10)).pack()
-        self.confirm_password_entry = tk.Entry(d, font=('Helvetica', 11),
-                                               justify='center', show='*')
+                 font=('Helvetica', 10), bg=PANEL_BG, fg=TEXT_DARK).pack()
+        self.confirm_password_entry = tk.Entry(
+            d,
+            font=('Helvetica', 11),
+            justify='center',
+            show='*',
+            relief='flat',
+            highlightthickness=1,
+            highlightbackground='#d1d5db',
+            highlightcolor='#2563eb',
+        )
         self.confirm_password_entry.pack(padx=24, pady=8, fill=tk.X, ipady=6)
         self.confirm_password_entry.bind(
             '<Return>',
@@ -362,23 +477,24 @@ class ChatGUI:
 
         self.login_error_var = tk.StringVar(value=error or '')
         tk.Label(d, textvariable=self.login_error_var,
-                 fg='#b91c1c', font=('Helvetica', 9)).pack()
+                 bg=PANEL_BG, fg='#b91c1c', font=('Helvetica', 9)).pack()
 
-        button_frame = tk.Frame(d)
+        button_frame = tk.Frame(d, bg=PANEL_BG)
         button_frame.pack(pady=8)
-        self.login_btn_dialog = tk.Button(
-            button_frame, text="Login", command=self.submit_login,
-            bg='#2563eb', fg='white', font=('Helvetica', 10, 'bold'),
-            activebackground='#1d4ed8', activeforeground='white',
+        self.login_btn_dialog = self.make_button(
+            button_frame,
+            text="Login",
+            command=self.submit_login,
+            variant='primary',
         )
-        self.login_btn_dialog.pack(side=tk.LEFT, padx=4, ipady=3, ipadx=18)
-        self.register_btn_dialog = tk.Button(
-            button_frame, text="Register",
+        self.login_btn_dialog.pack(side=tk.LEFT, padx=4)
+        self.register_btn_dialog = self.make_button(
+            button_frame,
+            text="Register",
             command=lambda: self.submit_login("register"),
-            bg='#047857', fg='white', font=('Helvetica', 10, 'bold'),
-            activebackground='#065f46', activeforeground='white',
+            variant='success',
         )
-        self.register_btn_dialog.pack(side=tk.LEFT, padx=4, ipady=3, ipadx=12)
+        self.register_btn_dialog.pack(side=tk.LEFT, padx=4)
 
         self.login_dialog = d
 
@@ -407,8 +523,18 @@ class ChatGUI:
                 self.login_error_var.set('Passwords do not match')
                 return
         
-        text = 'Registering...' if action == "register" else 'Logging in...'
-        self._set_auth_buttons('disabled', login_text=text, register_text=text)
+        if action == "register":
+            self._set_auth_buttons(
+                'disabled',
+                login_text='Login',
+                register_text='Registering...',
+            )
+        else:
+            self._set_auth_buttons(
+                'disabled',
+                login_text='Logging in...',
+                register_text='Register',
+            )
         self.login_error_var.set('')
         self.input_queue.put(('login', {
             "action": action,
@@ -456,11 +582,13 @@ class ChatGUI:
         w = tk.Toplevel(self.root)
         w.title("Emojis")
         w.resizable(False, False)
+        w.configure(bg=PANEL_BG)
         w.transient(self.root)
         cols = 5
         for i, e in enumerate(EMOJIS):
-            tk.Button(
+            self.make_button(
                 w, text=e, font=('Helvetica', 16), width=3,
+                variant='ghost', padx=6, pady=5,
                 command=lambda emo=e: self.insert_emoji(emo),
             ).grid(row=i // cols, column=i % cols, padx=2, pady=2)
         self.emoji_window = w
@@ -530,28 +658,46 @@ class ChatGUI:
         w.title("Generate Image")
         w.geometry("420x380")
         w.resizable(False, False)
+        w.configure(bg=PANEL_BG)
         w.transient(self.root)
 
         tk.Label(w, text="Image Generation", font=('Helvetica', 14, 'bold'),
-                 pady=8).pack()
+                 bg=PANEL_BG, fg=TEXT_DARK, pady=8).pack()
 
         # Prompt
-        tk.Label(w, text="Prompt:", font=('Helvetica', 10), anchor='w').pack(
+        tk.Label(
+            w,
+            text="Prompt:",
+            font=('Helvetica', 10),
+            anchor='w',
+            bg=PANEL_BG,
+            fg=TEXT_DARK,
+        ).pack(
             fill=tk.X, padx=16)
-        prompt_text = tk.Text(w, height=4, font=('Helvetica', 11), wrap=tk.WORD)
+        prompt_text = tk.Text(
+            w,
+            height=4,
+            font=('Helvetica', 11),
+            wrap=tk.WORD,
+            relief='flat',
+            highlightthickness=1,
+            highlightbackground='#d1d5db',
+            highlightcolor='#2563eb',
+        )
         prompt_text.pack(fill=tk.X, padx=16, pady=(4, 8))
         prompt_text.focus_set()
 
         # Attach image for editing
-        attach_frame = tk.Frame(w)
+        attach_frame = tk.Frame(w, bg=PANEL_BG)
         attach_frame.pack(fill=tk.X, padx=16)
 
         attached_path = tk.StringVar(value='')
         attach_label = tk.Label(attach_frame, text="No image attached",
-                                font=('Helvetica', 9), fg='#6b7280')
+                                font=('Helvetica', 9), bg=PANEL_BG,
+                                fg=TEXT_MUTED)
         attach_label.pack(side=tk.LEFT, fill=tk.X, expand=True)
 
-        thumb_label = tk.Label(w)
+        thumb_label = tk.Label(w, bg=PANEL_BG)
         thumb_label.pack(pady=4)
 
         def attach_image():
@@ -582,22 +728,31 @@ class ChatGUI:
             thumb_label.config(image='')
             thumb_label._photo = None
 
-        tk.Button(attach_frame, text="Attach", width=8,
-                  command=attach_image).pack(side=tk.LEFT, padx=4)
-        tk.Button(attach_frame, text="Clear", width=8,
-                  command=clear_image).pack(side=tk.LEFT, padx=4)
+        self.make_button(
+            attach_frame,
+            text="Attach",
+            width=8,
+            command=attach_image,
+        ).pack(side=tk.LEFT, padx=4)
+        self.make_button(
+            attach_frame,
+            text="Clear",
+            width=8,
+            command=clear_image,
+            variant='ghost',
+        ).pack(side=tk.LEFT, padx=4)
 
         # Status & generate button
         status_var = tk.StringVar(value='')
         tk.Label(w, textvariable=status_var, fg='#b91c1c',
-                 font=('Helvetica', 9)).pack(pady=4)
+                 bg=PANEL_BG, font=('Helvetica', 9)).pack(pady=4)
 
-        gen_btn = tk.Button(
-            w, text="Generate", bg='#7c3aed', fg='white',
-            activebackground='#6d28d9', activeforeground='white',
-            font=('Helvetica', 10, 'bold'),
+        gen_btn = self.make_button(
+            w,
+            text="Generate",
+            variant='primary',
         )
-        gen_btn.pack(pady=8, ipady=4, ipadx=20)
+        gen_btn.pack(pady=8)
 
         def on_generate():
             prompt = prompt_text.get('1.0', tk.END).strip()
@@ -673,14 +828,20 @@ class ChatGUI:
     def _open_full_image(self, path):
         viewer = tk.Toplevel(self.root)
         viewer.title(os.path.basename(path))
+        viewer.configure(bg=PANEL_BG)
         try:
             img = PILImage.open(path)
             photo = ImageTk.PhotoImage(img)
             self._image_refs.append(photo)
-            lbl = tk.Label(viewer, image=photo)
+            lbl = tk.Label(viewer, image=photo, bg=PANEL_BG)
             lbl.pack()
         except Exception as e:
-            tk.Label(viewer, text=f'Error: {e}', fg='red').pack(padx=20, pady=20)
+            tk.Label(
+                viewer,
+                text=f'Error: {e}',
+                bg=PANEL_BG,
+                fg='red',
+            ).pack(padx=20, pady=20)
             return
 
         def save_as():
@@ -694,12 +855,19 @@ class ChatGUI:
             if dest:
                 PILImage.open(path).save(dest)
 
-        btn_frame = tk.Frame(viewer)
+        btn_frame = tk.Frame(viewer, bg=PANEL_BG)
         btn_frame.pack(pady=8)
-        tk.Button(btn_frame, text="Save As...", command=save_as).pack(
-            side=tk.LEFT, padx=4)
-        tk.Button(btn_frame, text="Close", command=viewer.destroy).pack(
-            side=tk.LEFT, padx=4)
+        self.make_button(
+            btn_frame,
+            text="Save As...",
+            command=save_as,
+        ).pack(side=tk.LEFT, padx=4)
+        self.make_button(
+            btn_frame,
+            text="Close",
+            command=viewer.destroy,
+            variant='ghost',
+        ).pack(side=tk.LEFT, padx=4)
 
     def open_or_update_game(self, parsed):
         game_id = parsed["game_id"]
@@ -959,6 +1127,12 @@ class ChatGUI:
             my_msg = ''
             connecting_to_bot = False
             if (
+                self.pending_connect_peer
+                and self.sm.get_state() == S_LOGGEDIN
+            ):
+                my_msg = f'c {self.pending_connect_peer}'
+                self.pending_connect_peer = ''
+            elif (
                 self.pending_bot_msg
                 and self.sm.get_state() == S_CHATTING
                 and self.sm.peer == self.bot_name
@@ -984,6 +1158,14 @@ class ChatGUI:
                         self._send_game_action('game_resign', val)
                     elif kind == 'game_scoreboard':
                         self._send_game_action('game_scoreboard')
+                    elif kind == 'switch_peer':
+                        peer = str(val).strip()
+                        if peer:
+                            if self.sm.get_state() == S_CHATTING:
+                                self.sm.disconnect()
+                                self.sm.set_state(S_LOGGEDIN)
+                                self.bot_in_group = False
+                            my_msg = f'c {peer}'
                     elif kind == 'bot_msg' and self.sm.get_state() == S_LOGGEDIN:
                         self.pending_bot_msg = val
                         my_msg = f'c {self.bot_name}'

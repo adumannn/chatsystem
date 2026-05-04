@@ -6,6 +6,7 @@ Created on Tue Jul 22 00:47:05 2014
 
 import json
 import os
+import re
 import select
 import socket
 import string
@@ -27,6 +28,7 @@ class Server:
         self.all_sockets = []
         self.group = grp.Group()
         self.auth = PasswordAuthenticator()
+        self.bot_name = os.environ.get("CHATBOT_NAME", "chatbot")
         #start server
         self.server=socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.server.bind(SERVER)
@@ -80,6 +82,77 @@ class Server:
             "status": status,
             "message": message,
         }))
+
+    def detach_bot_only_chat(self, name):
+        bot_name = getattr(self, "bot_name", os.environ.get("CHATBOT_NAME", "chatbot"))
+        if name == bot_name:
+            return
+
+        in_group, group_key = self.group.find_group(name)
+        if not in_group:
+            return
+
+        members = list(self.group.chat_grps.get(group_key, []))
+        if len(members) != 2 or bot_name not in members:
+            return
+
+        self.group.disconnect(bot_name)
+        bot_sock = self.logged_name2sock.get(bot_name)
+        if bot_sock:
+            try:
+                mysend(bot_sock, json.dumps({"action": "disconnect"}))
+            except OSError:
+                pass
+
+    def message_mentions_bot(self, message):
+        bot_name = getattr(self, "bot_name", os.environ.get("CHATBOT_NAME", "chatbot"))
+        if not bot_name:
+            return False
+        return bool(re.search(
+            rf"(^|\W)@{re.escape(bot_name)}(\W|$)",
+            message or "",
+            re.IGNORECASE,
+        ))
+
+    def same_chat_group(self, first_name, second_name):
+        first_in_group, first_group_key = self.group.find_group(first_name)
+        second_in_group, second_group_key = self.group.find_group(second_name)
+        return (
+            first_in_group
+            and second_in_group
+            and first_group_key == second_group_key
+        )
+
+    def invite_idle_bot_for_mention(self, from_name, message):
+        bot_name = getattr(self, "bot_name", os.environ.get("CHATBOT_NAME", "chatbot"))
+        if (
+            from_name == bot_name
+            or not self.message_mentions_bot(message)
+            or not self.group.is_member(bot_name)
+            or self.same_chat_group(from_name, bot_name)
+        ):
+            return False
+
+        bot_in_group, _ = self.group.find_group(bot_name)
+        if bot_in_group:
+            return False
+
+        from_was_grouped, _ = self.group.find_group(from_name)
+        self.group.connect(from_name, bot_name)
+        the_guys = self.group.list_me(from_name)
+        for g in the_guys[1:]:
+            to_sock = self.logged_name2sock[g]
+            notice_from = from_name
+            if from_was_grouped and g != bot_name:
+                notice_from = bot_name
+            mysend(to_sock, json.dumps({
+                "action": "connect",
+                "status": "request",
+                "from": notice_from,
+                "members": the_guys,
+            }))
+        return True
+
     def new_client(self, sock):
         #add to all sockets and to new clients
         print('new client...')
@@ -343,6 +416,14 @@ class Server:
                     msg = json.dumps({"action":"connect", "status":"self"})
                 # connect to the peer
                 elif self.group.is_member(to_name):
+                    bot_name = getattr(
+                        self,
+                        "bot_name",
+                        os.environ.get("CHATBOT_NAME", "chatbot"),
+                    )
+                    if from_name != bot_name and to_name != bot_name:
+                        self.detach_bot_only_chat(from_name)
+                        self.detach_bot_only_chat(to_name)
                     from_was_grouped, _ = self.group.find_group(from_name)
                     peer_was_grouped, _ = self.group.find_group(to_name)
                     self.group.connect(from_name, to_name)
@@ -367,6 +448,10 @@ class Server:
 #==============================================================================
             elif msg["action"] == "exchange":
                 from_name = self.logged_sock2name[from_sock]
+                self.invite_idle_bot_for_mention(
+                    from_name,
+                    msg.get("message", ""),
+                )
                 the_guys = self.group.list_me(from_name)
                 #said = msg["from"]+msg["message"]
                 said2 = text_proc(msg["message"], from_name)
