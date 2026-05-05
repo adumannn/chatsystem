@@ -52,6 +52,7 @@ def _tokenize(text: str) -> list[str]:
 
 # ── Keyword extraction (TF-IDF inspired) ────────────────────────────────────
 
+
 def extract_keywords(messages: list[str], top_n: int = 10) -> list[tuple[str, float]]:
     """
     Return the *top_n* keywords from *messages* ranked by a TF-IDF-like score.
@@ -125,15 +126,16 @@ def format_keywords(messages: list[str], top_n: int = 10) -> str:
         lines.append("")
         lines.append("📌 Frequent phrases:")
         for phrase, count in bigrams:
-            lines.append(f"     • \"{phrase}\" (×{count})")
+            lines.append(f'     • "{phrase}" (×{count})')
 
     # Total stats
     all_tokens = []
     for msg in messages:
         all_tokens.extend(_tokenize(_clean_message(msg)))
     lines.append("")
-    lines.append(f"📊 Analyzed {len(messages)} messages, "
-                 f"{len(all_tokens)} meaningful words")
+    lines.append(
+        f"📊 Analyzed {len(messages)} messages, {len(all_tokens)} meaningful words"
+    )
 
     return "\n".join(lines)
 
@@ -180,10 +182,6 @@ def _extractive_summary(messages: list[str], num_sentences: int = 5) -> str:
 
 
 def generate_summary(messages: list[str]) -> str:
-    """
-    Send recent chat messages to the LLM and ask for a brief summary.
-    Falls back to an extractive summary if the LLM is unavailable.
-    """
     if not messages:
         return "No chat history to summarise."
 
@@ -197,7 +195,7 @@ def generate_summary(messages: list[str]) -> str:
         "Below is a transcript of recent chat messages between users. "
         "Write a brief, concise summary (3-5 sentences) capturing the main "
         "topics and key points discussed. Do NOT include any greetings or "
-        "filler — only the summary.\n\n"
+        "filler. Return ONLY the summary text.\n\n"
         "--- CHAT TRANSCRIPT ---\n"
         f"{chat_block}\n"
         "--- END ---\n\n"
@@ -205,10 +203,11 @@ def generate_summary(messages: list[str]) -> str:
     )
 
     try:
-        result = ask_llm(prompt).strip()
+        result = ask_llm(prompt, max_tokens=180, temperature=0.2).strip()
         if result:
             return "🤖 AI Summary:\n" + result
         raise ValueError("Empty LLM response")
     except Exception:
-        # Graceful fallback to extractive summary
+        # Graceful fallback to extractive summary (timeout, empty model output,
+        # local Ollama unavailable, etc.)
         return _extractive_summary(recent)

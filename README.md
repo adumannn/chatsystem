@@ -92,15 +92,17 @@ python3 src/chat_cmdl_client.py -d 1.2.3.4
 
 Once logged in, available commands are:
 
-| Command       | Effect                                                |
-| ------------- | ----------------------------------------------------- |
-| `time`        | Show the server's current time                        |
-| `who`         | List users and active chat groups                     |
-| `c <peer>`    | Connect to `<peer>` and start chatting                |
-| `? <term>`    | Search your own chat history for `<term>`             |
-| `p <n>`       | Print Shakespeare's sonnet number `<n>` (1–154)       |
-| `bye`         | Leave the current conversation, stay logged in        |
-| `q`           | Quit the chat system                                  |
+| Command     | Effect                                           |
+| ----------- | ------------------------------------------------ |
+| `time`      | Show the server's current time                   |
+| `who`       | List users and active chat groups                |
+| `c <peer>`  | Connect to `<peer>` and start chatting           |
+| `? <term>`  | Search your own chat history for `<term>`        |
+| `p <n>`     | Print Shakespeare's sonnet number `<n>` (1–154)  |
+| `/keywords` | Extract key topics from your recent chat history |
+| `/summary`  | Generate a short summary of recent chat messages |
+| `bye`       | Leave the current conversation, stay logged in   |
+| `q`         | Quit the chat system                             |
 
 The GUI client exposes the same commands as toolbar buttons plus an emoji
 picker.
@@ -121,6 +123,15 @@ is not a chat command is sent to the chatbot; use `c <peer>` when you want to
 chat with another online user instead. Chatbot settings can be overridden with
 `CHATBOT_NAME`, `CHATBOT_PASSWORD`, `CHATBOT_MODEL`, `CHATBOT_OLLAMA_HOST`, and
 `CHATBOT_TIMEOUT` (defaults to 45 seconds).
+
+`/summary` uses a separate local Ollama call and falls back to an extractive
+(non-LLM) summary if the model is unavailable or returns empty output. You can
+tune it with:
+
+- `SUMMARY_MODEL` (default: `qwen3.5:4b`)
+- `SUMMARY_OLLAMA_HOST` (default: `http://localhost:11434`)
+- `SUMMARY_LLM_TIMEOUT` in seconds (default: `30`)
+- `SUMMARY_MAX_TOKENS` (default: `220`)
 
 The chatbot keeps short in-memory conversation context per direct chat or group.
 In a group chat, mention it by name to trigger a reply, for example

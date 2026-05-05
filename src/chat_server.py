@@ -12,6 +12,7 @@ import socket
 import string
 import sys
 import time
+import threading
 import pickle as pkl
 
 import chat_group as grp
@@ -34,6 +35,7 @@ class Server:
         self.server.bind(SERVER)
         self.server.listen(5)
         self.all_sockets.append(self.server)
+        self._send_lock = threading.Lock()
         #initialize past chat indices
         self.indices={}
         # active game state
@@ -513,9 +515,12 @@ class Server:
             elif msg["action"] == "summary":
                 from_name = self.logged_sock2name[from_sock]
                 print(from_name + ' requested summary')
-                msgs = self.indices[from_name].msgs
-                result = nlp_utils.generate_summary(msgs)
-                mysend(from_sock, json.dumps({"action":"summary", "results":result}))
+                msgs = list(self.indices[from_name].msgs)
+                threading.Thread(
+                    target=self._summary_worker,
+                    args=(from_sock, msgs),
+                    daemon=True,
+                ).start()
 #==============================================================================
 # the "from" guy has had enough (talking to "to")!
 #==============================================================================
@@ -535,6 +540,20 @@ class Server:
         else:
             #client died unexpectedly
             self.logout(from_sock)
+
+#==============================================================================
+# background worker for /summary (avoids blocking the main select loop)
+#==============================================================================
+    def _summary_worker(self, sock, msgs):
+        try:
+            result = nlp_utils.generate_summary(msgs)
+        except Exception as e:
+            result = f"(summary unavailable: {e})"
+        with self._send_lock:
+            try:
+                mysend(sock, json.dumps({"action": "summary", "results": result}))
+            except Exception:
+                pass  # client may have disconnected
 
 #==============================================================================
 # main loop, loops *forever*
