@@ -17,6 +17,7 @@ Beyond plain chat the server also supports:
 ```
 Chat_System_Full/
 ├── README.md
+├── requirements.txt           # Third-party Python dependencies
 ├── .gitignore
 ├── src/                       # Application source code
 │   ├── chat_utils.py          # Shared protocol helpers, constants, paths
@@ -56,11 +57,28 @@ the same password.
 ## Requirements
 
 - Python 3.8+ (developed on 3.13)
-- Standard-library modules for the core chat system.
-- Optional chatbot support requires Ollama running locally plus the Python
-  `ollama` package.
 - `tkinter` is required for the GUI client (bundled with most Python
   installs; on Debian/Ubuntu install `python3-tk`).
+- A local [Ollama](https://ollama.com/) server is required for the
+  chatbot, `/summary`, and `/keywords` features.
+
+Third-party Python packages are listed in [`requirements.txt`](requirements.txt):
+
+```bash
+pip install -r requirements.txt
+```
+
+| Package         | Used by                                                  |
+| --------------- | -------------------------------------------------------- |
+| `ollama`        | `src/ai_client.py`, chatbot client (local LLM calls)     |
+| `requests`      | `src/image_gen.py` (Pollinations.ai image generation)    |
+| `Pillow`        | GUI client image previews and `test_file.py`             |
+| `google-genai`  | `test_file.py` (Gemini "Nano Banana" image experiment)   |
+| `openai-agents` | `test_file.py` (`@function_tool` wrapper)                |
+
+The core chat server and CLI client run on the standard library alone; the
+table above only matters if you want the chatbot, image generation, or the
+GUI client's image features.
 
 ## Running
 

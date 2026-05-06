@@ -22,5 +22,11 @@ runtime/
 *.swp
 *.swo
 
+# Claude Code & tooling local state
+.claude/
+.pi-lens/
+.ruff_cache/
+.pytest_cache/
+
 # env variables
 .env
